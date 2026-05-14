@@ -1,5 +1,7 @@
 import cv2 
 import numpy as np
+from flask import Flask, Response
+app = Flask(__name__)
 
 
 lower = np.array([25, 75, 85])
@@ -11,84 +13,97 @@ history = []
 history_size = 3
 pos_thresh = 30
 
-while True:
-    ret, frame = cam.read()
+def generate_frames():
+    while True:
+        ret, frame = cam.read()
 
-    if ret == False:
-        break
-
-    frame = cv2.resize(frame, (1280, 720))
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    blur = cv2.GaussianBlur(hsv, (11, 11), 0)
-    mask = cv2.inRange(blur, lower, upper)
-
-    
-    
-    
-    contours, heirarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    if len(contours)>0:
+        if ret == False:
+            break
 
         
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        blur = cv2.GaussianBlur(hsv, (11, 11), 0)
+        mask = cv2.inRange(blur, lower, upper)
 
-        valid = []
-
-        for suspect in contours:
         
-            (x, y), radius = cv2.minEnclosingCircle(suspect)
-            circle_area = 3.14159 * radius * radius
-            area = cv2.contourArea(suspect)
-
-            circularity = area / circle_area
-
-            
-
-            if circularity > 0.5 and area > 500:
-                
-                valid.append(suspect)
-                
-
-                
-        stable = False
-
-        if len(valid) > 0:
-
-            
-            target = max(valid, key = cv2.contourArea)
-
-                   
-            x, y, w, h = cv2.boundingRect(target)
-            cx = (x + w)//2
-            cy = (y + h)//2
-
-            history.append((cx, cy))
-
-            if len(history) > history_size:
-                history.pop(0)
+        
+        
+        contours, heirarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        if len(contours)>0:
 
             
 
-            if len(history) == history_size:
-                xs = [h[0] for h in history]
-                ys = [h[1] for h in history]
+            valid = []
 
-                if (max(xs) - min(xs)) < pos_thresh and (max(ys) - min(ys)) < pos_thresh:
-                    stable = True
-        else:
-            history.clear()
+            for suspect in contours:
+            
+                (x, y), radius = cv2.minEnclosingCircle(suspect)
+                circle_area = 3.14159 * radius * radius
+                area = cv2.contourArea(suspect)
 
-        if stable:
-            cv2.rectangle(frame, (x, y), ((x + w), (y + h)), (0, 0, 255), 2)
+                circularity = area / circle_area
+
+                
+
+                if circularity > 0.5 and area > 500:
+                    
+                    valid.append(suspect)
+                    
+
+                    
+            stable = False
+
+            if len(valid) > 0:
+
+                
+                target = max(valid, key = cv2.contourArea)
+
+                    
+                x, y, w, h = cv2.boundingRect(target)
+                cx = (x + w)//2
+                cy = (y + h)//2
+
+                history.append((cx, cy))
+
+                if len(history) > history_size:
+                    history.pop(0)
+
+                
+
+                if len(history) == history_size:
+                    xs = [pos[0] for pos in history]
+                    ys = [pos[1] for pos in history]
+
+                    if (max(xs) - min(xs)) < pos_thresh and (max(ys) - min(ys)) < pos_thresh:
+                        stable = True
+            else:
+                history.clear()
+
+            if stable:
+                cv2.rectangle(frame, (x, y), ((x + w), (y + h)), (0, 0, 255), 2)
+                
 
 
-    cv2.imshow("frame", frame)
-    cv2.imshow("mask", mask)
-    
-    
-    if cv2.waitKey(40) & 0xFF == ord("q"):
-        break
+        ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+        
+        
+@app.route('/video')
+def video_feed():
+    # mimetype tells browser this is a continuous stream of JPEGs
+    return Response(generate_frames(),
+                   mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
+@app.route('/')
+def index():
+    # Tiny HTML page with image tag pointing to /video
+    return '<img src="/video" width="800">'
 
-cam.release()
-cv2.destroyAllWindows()
+# Start the web server — visible to all devices on WiFi on port 5000
+app.run(host='0.0.0.0', port=5000, debug=False)
+
+
