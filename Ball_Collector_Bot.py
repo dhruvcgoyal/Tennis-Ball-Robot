@@ -2,12 +2,15 @@ import cv2
 import numpy as np
 from flask import Flask, Response
 app = Flask(__name__)
+from picamera2 import Picamera2
 
 
 lower = np.array([25, 75, 85])
 upper = np.array([50, 220, 255])
 
-cam = cv2.VideoCapture(0)
+picam = Picamera2()
+picam.configure(picam.create_video_configuration(main={"size": (640, 480)}))
+picam.start()
 
 history = []
 history_size = 3
@@ -15,10 +18,8 @@ pos_thresh = 30
 
 def generate_frames():
     while True:
-        ret, frame = cam.read()
-
-        if ret == False:
-            break
+        frame = picam.capture_array()
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
         
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
