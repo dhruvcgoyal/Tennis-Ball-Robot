@@ -4,7 +4,7 @@ Purpose: An autonomous robot that uses computer vision to gather tennis balls
 
 As a competitive tennis player, I decided to try to ease the tedious task of picking up tennis balls that are scattered around the court
 
-Current Status: V1: Tennis ball detecting software working. Motor integration in progress.
+Current Status: V1: Tennis ball detecting software is mostly working with motor integration. Fine-tuning needs done
 
 Hardware: Raspberry Pi 4
           Pi Cam 3
@@ -26,6 +26,7 @@ V1: Detect and drive towards a singular tennis ball
                     If anything in the frame matches the colour range, then a minimum enclosing circle function is applied to it to determine its circularity
                     If the contour is circular, then it is added to a list of valid contours (contours that are tennis balls)
                     If the valid contour with the largest area remains the same for 3 consecutive frames, a bounding box is drawn around it for visual aid
+                    If the ball is off the center of the camera frame, then the motors turn to bring the robot to face the ball
                     
 
 V2: Choose the closest target out of multiple tennis balls and drive towards it, while being able to avoid obstacles in the way
