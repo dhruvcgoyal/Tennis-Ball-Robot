@@ -4,7 +4,7 @@ Purpose: An autonomous robot that uses computer vision to gather tennis balls
 
 As a competitive tennis player, I decided to try to ease the tedious task of picking up tennis balls that are scattered around the court
 
-Current Status: V1: Tennis ball detecting software is mostly working with motor integration. Fine-tuning needs done
+Current Status: V1: Complete
 
 Hardware: Raspberry Pi 4
           Pi Cam 3
