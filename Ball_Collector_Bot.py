@@ -23,7 +23,7 @@ pwm_b = GPIO.PWM(ENB, 100)
 pwm_a.start(0)
 pwm_b.start(0)
 
-lower = np.array([25, 50, 50])
+lower = np.array([25, 85, 75])
 upper = np.array([50, 220, 255])
 
 picam = Picamera2()
@@ -41,11 +41,11 @@ def adjust(cx):
     limit_high = 540
 
     if cx < limit_low:
-        left(50)
+        left(80)
         print("L")
 
     elif cx > limit_high:
-        right(50)
+        right(80)
         print("R")
 
     else:
