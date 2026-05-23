@@ -5,6 +5,9 @@ app = Flask(__name__)
 from picamera2 import Picamera2
 import RPi.GPIO as GPIO
 import time
+from ultralytics import YOLO
+
+model = YOLO('best_ncnn_model')
 
 IN1 = 17
 IN2 = 27
@@ -23,8 +26,7 @@ pwm_b = GPIO.PWM(ENB, 100)
 pwm_a.start(0)
 pwm_b.start(0)
 
-lower = np.array([25, 85, 75])
-upper = np.array([50, 220, 255])
+
 
 picam = Picamera2()
 picam.configure(picam.create_video_configuration(main={"size": (640, 480)}))
@@ -33,6 +35,11 @@ picam.start()
 history = []
 history_size = 3
 pos_thresh = 30
+
+frame_count = 0
+last_box = None
+last_cx = None
+stable = False
 
 
 def adjust(cx):
@@ -103,84 +110,72 @@ def forward(speed):
 
 
 def generate_frames():
+    global frame_count, last_box, last_cx, stable
     while True:
         frame = picam.capture_array()
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        frame_count += 1
         
 
-        
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        blur = cv2.GaussianBlur(hsv, (11, 11), 0)
-        mask = cv2.inRange(blur, lower, upper)
-        kernel = np.ones((15,15), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-
-        
-        
-        
-        contours, heirarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        if len(contours)>0:
+        if frame_count % 3 == 0:
+            results = model(frame, verbose=False)
+            print(f"detections: {len(results[0].boxes)}")
 
             
+            detected = False
+            for result in results:
+                boxes = result.boxes
+                for box in boxes:
+                    if len(boxes) > 0:
+                        x1, y1, x2, y2 = map(int, box.xyxy[0])
+                        confidence = float(box.conf[0])
+                        
+                        if confidence > 0.5:
+                            detected = True
+                            cx = (x1 + x2) // 2
+                            cy = (y1 + y2) // 2
+                            last_box = (x1, y1, x2, y2)
+                            last_cx = cx
+                            
+                            history.append((cx, cy))
+                            if len(history) > history_size:
+                                history.pop(0)
+                            
+                            if len(history) == history_size:
+                                xs = [pos[0] for pos in history]
+                                ys = [pos[1] for pos in history]
+                                if (max(xs) - min(xs)) < pos_thresh and (max(ys) - min(ys)) < pos_thresh:
+                                    stable = True
 
-            valid = []
-
-            for suspect in contours:
-            
-                (x, y), radius = cv2.minEnclosingCircle(suspect)
-                circle_area = 3.14159 * radius * radius
-                area = cv2.contourArea(suspect)
-
-                circularity = area / circle_area
-
-                
-
-                if circularity > 0.5 and area > 500:
-                    
-                    valid.append(suspect)
-                    
-
-                    
-            stable = False
-
-            if len(valid) > 0:
-
-                
-                target = max(valid, key = cv2.contourArea)
-
-                    
-                x, y, w, h = cv2.boundingRect(target)
-                cx = x + w//2
-                cy = y + h//2
-
-                history.append((cx, cy))
-
-                if len(history) > history_size:
-                    history.pop(0)
-
-                
-
-                if len(history) == history_size:
-                    xs = [pos[0] for pos in history]
-                    ys = [pos[1] for pos in history]
-
-                    if (max(xs) - min(xs)) < pos_thresh and (max(ys) - min(ys)) < pos_thresh:
-                        stable = True
-            else:
+            if not detected:
                 history.clear()
+                last_box = None
+                last_cx = None
+                stable = False
                 stop()
 
-            if stable:
-                cv2.rectangle(frame, (x, y), ((x + w), (y + h)), (0, 0, 255), 2)
-                cv2.line(frame, (320, 0), (320, 480), (255, 0, 0), 2)
-                cv2.putText(frame, f"cx={cx}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2)
-                
-                adjust(cx)
+        if stable and last_box and last_cx:
+            cv2.rectangle(frame, last_box[:2], last_box[2:], (0, 255, 0), 2)
+            adjust(last_cx)
+
+
+
+
+
+        
+        
+
+                    
+
+                    
+            
+
+
+
                 
 
 
-        ret, buffer = cv2.imencode('.jpg', mask, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
         
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
