@@ -29,7 +29,7 @@ pwm_b.start(0)
 
 
 picam = Picamera2()
-picam.configure(picam.create_video_configuration(main={"size": (640, 480)}))
+picam.configure(picam.create_video_configuration(main={"size": (320, 240)}))
 picam.start()
 
 history = []
@@ -37,9 +37,11 @@ history_size = 3
 pos_thresh = 30
 
 frame_count = 0
-last_box = None
-last_cx = None
 stable = False
+
+best_area = 0
+best_box = None
+cx = None
 
 
 def adjust(cx):
@@ -110,7 +112,7 @@ def forward(speed):
 
 
 def generate_frames():
-    global frame_count, last_box, last_cx, stable
+    global frame_count, stable, best_box, best_area, cx
     while True:
         frame = picam.capture_array()
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
@@ -118,6 +120,7 @@ def generate_frames():
         
 
         if frame_count % 3 == 0:
+            best_area = 0
             results = model(frame, verbose=False)
             print(f"detections: {len(results[0].boxes)}")
 
@@ -132,31 +135,33 @@ def generate_frames():
                         
                         if confidence > 0.5:
                             detected = True
-                            cx = (x1 + x2) // 2
-                            cy = (y1 + y2) // 2
-                            last_box = (x1, y1, x2, y2)
-                            last_cx = cx
+                            area = (x2-x1) * (y2-y1)
+                            if area > best_area:
+                                best_area = area
+                                best_box = (x1, y1, x2, y2)
                             
-                            history.append((cx, cy))
-                            if len(history) > history_size:
-                                history.pop(0)
+                if detected:
+                    x1, y1, x2, y2 = best_box
+                    cx = (x1 + x2) // 2
+                    cy = (y1 + y2) // 2            
+                    history.append((cx, cy))
+                    if len(history) > history_size:
+                        history.pop(0)
                             
-                            if len(history) == history_size:
-                                xs = [pos[0] for pos in history]
-                                ys = [pos[1] for pos in history]
-                                if (max(xs) - min(xs)) < pos_thresh and (max(ys) - min(ys)) < pos_thresh:
-                                    stable = True
+                if len(history) == history_size:
+                    xs = [pos[0] for pos in history]
+                    ys = [pos[1] for pos in history]
+                    if (max(xs) - min(xs)) < pos_thresh and (max(ys) - min(ys)) < pos_thresh:
+                        stable = True
 
             if not detected:
                 history.clear()
-                last_box = None
-                last_cx = None
                 stable = False
                 stop()
 
-        if stable and last_box and last_cx:
-            cv2.rectangle(frame, last_box[:2], last_box[2:], (0, 255, 0), 2)
-            adjust(last_cx)
+        if stable:
+            cv2.rectangle(frame, best_box[:2], best_box[2:], (0, 255, 0), 2)
+            adjust(cx)
 
 
 
@@ -175,7 +180,7 @@ def generate_frames():
                 
 
 
-        ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 50])
+        ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 30])
         
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
