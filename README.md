@@ -21,12 +21,9 @@ Roadmap:
 
 V1: Detect and drive towards a singular tennis ball
 
-      How it works: The while loop processes each frame
-                    Frame is blurred, changed to HSV colorspace, and finally, a mask is created via the cv2.inRange function, defined by the HSV limits declared at the beginning
-                    If anything in the frame matches the colour range, then a minimum enclosing circle function is applied to it to determine its circularity
-                    If the contour is circular, then it is added to a list of valid contours (contours that are tennis balls)
-                    If the valid contour with the largest area remains the same for 3 consecutive frames, a bounding box is drawn around it for visual aid
-                    If the ball is off the center of the camera frame, then the motors turn to bring the robot to face the ball
+      How it works: The while loop processes each frame. Every three frames, the YOLO detection model searches for tennis balls.
+      The position of the detection is stored in a list, and if the list has 3 items and the x and y values from each item are extracted, and the max and min are compared.
+      If the x and y values are close enough and the confidence is greater than 50%, the ball is driven towards
                     
 
 V2: Choose the closest target out of multiple tennis balls and drive towards it, while being able to avoid obstacles in the way
