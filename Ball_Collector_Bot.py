@@ -43,23 +43,58 @@ best_area = 0
 best_box = None
 cx = None
 
+direction = None
+
 
 def adjust(cx):
+    global direction
 
     limit_low = 100
-    limit_high = 540
+    limit_high = 220
 
     if cx < limit_low:
-        left(80)
-        print("L")
+
+        if direction != "left":
+            direction = "left"
+            stop()
+            time.sleep(1)
+
+        else:
+            left(70)
+            print("L")
 
     elif cx > limit_high:
-        right(80)
-        print("R")
+
+        if direction != "right":
+            direction = "right"
+            stop()
+            time.sleep(1)
+
+        else:
+            right(70)
+            print("R")
+
+    elif 10000 >= best_area >= 5000:
+
+        if direction != "slow_forward":
+            direction = "slow_forward"
+            stop()
+            time.sleep(1)
+
+        else:
+            forward(60)
+            print("Tripi")
 
     else:
-        forward(100)
-        print("tung")
+
+        if direction != "fast_forward":
+            direction = "fast_forward"
+            stop()
+            time.sleep(1)
+
+        else:   
+            forward(100)
+            print("tung")
         
 
 
@@ -119,10 +154,10 @@ def generate_frames():
         frame_count += 1
         
 
-        if frame_count % 3 == 0:
+        if frame_count % 2 == 0:
             best_area = 0
             results = model(frame, verbose=False)
-            print(f"detections: {len(results[0].boxes)}")
+            #print(f"detections: {len(results[0].boxes)}")
 
             
             detected = False
@@ -145,14 +180,15 @@ def generate_frames():
                     cx = (x1 + x2) // 2
                     cy = (y1 + y2) // 2            
                     history.append((cx, cy))
-                    if len(history) > history_size:
-                        history.pop(0)
+                    stable = True
+                    #if len(history) > history_size:
+                        #history.pop(0)
                             
-                if len(history) == history_size:
-                    xs = [pos[0] for pos in history]
-                    ys = [pos[1] for pos in history]
-                    if (max(xs) - min(xs)) < pos_thresh and (max(ys) - min(ys)) < pos_thresh:
-                        stable = True
+                #if len(history) == history_size:
+                    #xs = [pos[0] for pos in history]
+                    #ys = [pos[1] for pos in history]
+                    #if (max(xs) - min(xs)) < pos_thresh and (max(ys) - min(ys)) < pos_thresh:
+                        #stable = True
 
             if not detected:
                 history.clear()
@@ -160,37 +196,53 @@ def generate_frames():
                 stop()
 
         if stable:
-            cv2.rectangle(frame, best_box[:2], best_box[2:], (0, 255, 0), 2)
-            adjust(cx)
+            
+             
+
+                
+            if best_area >= 10000 and 100 < cx < 220:
+                cv2.rectangle(frame, best_box[:2], best_box[2:], (0, 255, 0), 2)
+                stop()
+                print("stopped")
+
+            elif best_area >= 30000:
+                cv2.rectangle(frame, best_box[:2], best_box[2:], (0, 255, 0), 2)
+                stop()
+                print("stopped")
+
+            else:    
+                cv2.rectangle(frame, best_box[:2], best_box[2:], (0, 255, 0), 2)
+                adjust(cx)
+                print(best_area)
 
 
 
 
 
-        
-        
-
-                    
-
-                    
+            
             
 
+                        
 
-
+                        
                 
 
 
-        ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 30])
-        
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+
+                    
+
+
+            ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 30])
+            
+            yield (b'--frame\r\n'
+                b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
 
         
         
         
 @app.route('/video')
 def video_feed():
-    # mimetype tells browser this is a continuous stream of JPEGs
+     #mimetype tells browser this is a continuous stream of JPEGs
     return Response(generate_frames(),
                    mimetype='multipart/x-mixed-replace; boundary=frame')
 
@@ -200,7 +252,7 @@ def index():
     # Tiny HTML page with image tag pointing to /video
     return '<img src="/video" width="800">'
 
-# Start the web server — visible to all devices on WiFi on port 5000
+ #Start the web server — visible to all devices on WiFi on port 5000
 app.run(host='0.0.0.0', port=5000, debug=False)
 
 
