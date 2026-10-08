@@ -15,14 +15,19 @@ IN3 = 22
 IN4 = 23
 ENA = 18
 ENB = 24
+Servo = 12
 
 GPIO.setmode(GPIO.BCM)
 GPIO.setup([IN1, IN2, IN3, IN4], GPIO.OUT)
 GPIO.setup(ENA, GPIO.OUT)
 GPIO.setup(ENB, GPIO.OUT)
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(Servo, GPIO.OUT)
 
 pwm_a = GPIO.PWM(ENA, 100)
 pwm_b = GPIO.PWM(ENB, 100)
+pwm = GPIO.PWM(Servo, 50)
+pwm.start(0)
 pwm_a.start(0)
 pwm_b.start(0)
 
@@ -46,11 +51,13 @@ cx = None
 direction = None
 
 
+
+
 def adjust(cx):
     global direction
 
-    limit_low = 100
-    limit_high = 220
+    limit_low = 60
+    limit_high = 260
 
     if cx < limit_low:
 
@@ -62,6 +69,8 @@ def adjust(cx):
         else:
             left(70)
             print("L")
+            time.sleep(0.2)
+            stop()
 
     elif cx > limit_high:
 
@@ -73,8 +82,10 @@ def adjust(cx):
         else:
             right(70)
             print("R")
+            time.sleep(0.2)
+            stop()
 
-    elif 10000 >= best_area >= 5000:
+    elif 10000 >= best_area >= 1000:
 
         if direction != "slow_forward":
             direction = "slow_forward"
@@ -83,6 +94,8 @@ def adjust(cx):
 
         else:
             forward(60)
+            time.sleep(0.2)
+            stop()
             print("Tripi")
 
     else:
@@ -99,6 +112,13 @@ def adjust(cx):
 
 
 
+def set_angle(angle): 
+    pwm.ChangeDutyCycle(angle)
+    time.sleep(20)
+    pwm.ChangeDutyCycle(0)
+    pwm.ChangeDutyCycle(10)
+    time.sleep(2)
+    pwm.ChangeDutyCycle(0)
 
 
 def backward(speed):
@@ -152,6 +172,7 @@ def generate_frames():
         frame = picam.capture_array()
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         frame_count += 1
+
         
 
         if frame_count % 2 == 0:
@@ -200,15 +221,17 @@ def generate_frames():
              
 
                 
-            if best_area >= 10000 and 100 < cx < 220:
+            if best_area >= 9350 and 100 < cx < 220:
                 cv2.rectangle(frame, best_box[:2], best_box[2:], (0, 255, 0), 2)
                 stop()
                 print("stopped")
+                set_angle(5)
 
-            elif best_area >= 30000:
+            elif best_area >= 20000:
                 cv2.rectangle(frame, best_box[:2], best_box[2:], (0, 255, 0), 2)
                 stop()
                 print("stopped")
+                set_angle(5)
 
             else:    
                 cv2.rectangle(frame, best_box[:2], best_box[2:], (0, 255, 0), 2)
